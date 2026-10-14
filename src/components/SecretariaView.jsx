@@ -218,9 +218,21 @@ export default function SecretariaView() {
   };
 
   const turnosFiltrados = turnos.filter(t => filtroProf === 'todas' || t.profesional_id === filtroProf);
-  const pacientesFiltrados = pacientes.filter(p => p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || p.apellido.toLowerCase().includes(busqueda.toLowerCase()) || p.dni.includes(busqueda.replace(/\D/g, '')));
-  const resultadosBusquedaTurno = busquedaTurno.length > 1 ? pacientes.filter(p => p.nombre.toLowerCase().includes(busquedaTurno.toLowerCase()) || p.apellido.toLowerCase().includes(busquedaTurno.toLowerCase()) || p.dni.includes(busquedaTurno.replace(/\D/g, ''))).slice(0, 5) : [];
+  
+  const pacientesFiltrados = pacientes.filter(p => {
+    const termino = busqueda.toLowerCase();
+    return p.nombre?.toLowerCase().includes(termino) || 
+           p.apellido?.toLowerCase().includes(termino) || 
+           p.dni?.includes(termino);
+  });
 
+  const resultadosBusquedaTurno = busquedaTurno.length > 1 ? pacientes.filter(p => {
+    const termino = busquedaTurno.toLowerCase();
+    return p.nombre?.toLowerCase().includes(termino) || 
+           p.apellido?.toLowerCase().includes(termino) || 
+           p.dni?.includes(termino);
+  }).slice(0, 5) : [];
+  
   const getBadgeClass = (estado) => {
     const clases = { confirmado: 'bg-[#EDE3F8] text-[#4A2E70]', atendido: 'bg-[#DDEBCF] text-[#2F5420]', ausente: 'bg-[#FBE7C4] text-[#7A4A00]', cancelado: 'bg-[#E6E1EB] text-[#4F4560]' };
     return clases[estado] || clases.confirmado;
