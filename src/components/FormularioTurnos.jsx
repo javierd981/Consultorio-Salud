@@ -11,7 +11,7 @@ export default function FormularioTurnos() {
 
   // Estado del formulario
   const [form, setForm] = useState({
-    nombre: '', apellido: '', dni: '', tel: '', consent: false,
+    nombre: '', apellido: '', dni: '', tel: '',
     obraSocialId: '', afiliado: '',
     especialidad: '', profId: '',
     dia: null, slotSeleccionado: null // slot guardará { inicio, fin }
@@ -65,7 +65,6 @@ export default function FormularioTurnos() {
       if (form.nombre.length < 2 || form.apellido.length < 2) return setErrorValidacion('Escribí tu nombre y apellido.');
       if (!/^\d{7,8}$/.test(form.dni.replace(/\D/g, ''))) return setErrorValidacion('El DNI debe tener 7 u 8 números.');
       if (form.tel.replace(/\D/g, '').length < 10) return setErrorValidacion('Revisá tu número de WhatsApp.');
-      if (!form.consent) return setErrorValidacion('Necesitamos tu aceptación para continuar.');
     }
     if (step === 2) {
       if (!form.obraSocialId) return setErrorValidacion('Elegí tu obra social o Particular.');
@@ -180,10 +179,6 @@ export default function FormularioTurnos() {
                 <label className="block font-bold mb-1.5">WhatsApp</label>
                 <input type="tel" value={form.tel} onChange={e => setForm({...form, tel: e.target.value})} placeholder="Ej: 3815551234" className="w-full bg-field border-[1.5px] border-line rounded-2xl p-3 focus:outline-none focus:ring-4 focus:ring-violet-500/50" />
               </div>
-              <label className="flex gap-3 items-start p-3.5 bg-field border-[1.5px] border-line rounded-2xl cursor-pointer">
-                <input type="checkbox" checked={form.consent} onChange={e => setForm({...form, consent: e.target.checked})} className="w-6 h-6 mt-0.5 accent-violet-700 shrink-0" />
-                <span>Acepto que el consultorio use mis datos personales para gestionar mis turnos.</span>
-              </label>
             </div>
           </div>
         )}

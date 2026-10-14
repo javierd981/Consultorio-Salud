@@ -232,7 +232,7 @@ export default function SecretariaView() {
            p.apellido?.toLowerCase().includes(termino) || 
            p.dni?.includes(termino);
   }).slice(0, 5) : [];
-  
+
   const getBadgeClass = (estado) => {
     const clases = { confirmado: 'bg-[#EDE3F8] text-[#4A2E70]', atendido: 'bg-[#DDEBCF] text-[#2F5420]', ausente: 'bg-[#FBE7C4] text-[#7A4A00]', cancelado: 'bg-[#E6E1EB] text-[#4F4560]' };
     return clases[estado] || clases.confirmado;
@@ -266,13 +266,13 @@ export default function SecretariaView() {
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
-            <button onClick={() => setFiltroProf('todas')} className={`px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === 'todas' ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>Todas</button>
-            {profesionales.map(p => (
-              <button key={p.id} onClick={() => setFiltroProf(p.id)} className={`px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === p.id ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>
-                {p.especialidad.replace('_', ' ')}
-              </button>
-            ))}
-          </div>
+  <button onClick={() => setFiltroProf('todas')} className={`px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === 'todas' ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>Todas</button>
+  {profesionales.map(p => (
+    <button key={p.id} onClick={() => setFiltroProf(p.id)} className={`capitalize px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === p.id ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>
+      {p.especialidad.replace('_', ' ')}
+    </button>
+  ))}
+</div>
 
           <ul className="grid gap-[10px]">
             {turnosFiltrados.length === 0 ? <p className="text-muted py-2 font-bold">No hay turnos para esta vista.</p> : turnosFiltrados.map((turno) => {
