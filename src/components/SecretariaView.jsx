@@ -65,8 +65,7 @@ export default function SecretariaView() {
 
     const { data } = await supabase
       .from('turnos')
-      // Se agregó telefono_wsp para poder enviar los mensajes
-      .select('id, inicio, estado, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obras_sociales(nombre))')
+      .select('id, inicio, estado, pagado, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obras_sociales(nombre))')
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
       .order('inicio', { ascending: true });
@@ -74,10 +73,20 @@ export default function SecretariaView() {
     if (data) setTurnos(data);
   };
 
+  // --- ACTUALIZADO: CAMBIAR ESTADO Y PAGAR ---
   const cambiarEstadoTurno = async (id, nuevoEstado) => {
-    const { error } = await supabase.from('turnos').update({ estado: nuevoEstado }).eq('id', id);
+    // Si el estado es 'atendido', preparamos el objeto para marcar también como pagado
+    const datosAActualizar = nuevoEstado === 'atendido' 
+      ? { estado: nuevoEstado, pagado: true } 
+      : { estado: nuevoEstado };
+
+    const { error } = await supabase
+      .from('turnos')
+      .update(datosAActualizar)
+      .eq('id', id);
+
     if (!error) {
-      setTurnos(turnos.map(t => t.id === id ? { ...t, estado: nuevoEstado } : t));
+      setTurnos(turnos.map(t => t.id === id ? { ...t, ...datosAActualizar } : t));
       setTurnoEditar(null);
       mostrarMensaje('Estado actualizado correctamente.', 'exito');
     } else {
@@ -92,7 +101,7 @@ export default function SecretariaView() {
       return mostrarMensaje('El paciente no tiene un WhatsApp registrado.', 'error');
     }
 
-    const numeroLimpio = telefono.replace(/\D/g, ''); // Quita espacios y guiones
+    const numeroLimpio = telefono.replace(/\D/g, ''); 
     const paciente = turnoEditar.pacientes?.nombre;
     const especialidad = turnoEditar.profesionalObj?.especialidad?.replace('_', ' ');
     const profesional = `${turnoEditar.profesionalObj?.nombre} ${turnoEditar.profesionalObj?.apellido}`;
@@ -266,13 +275,13 @@ export default function SecretariaView() {
           </div>
 
           <div className="flex flex-wrap gap-2 mb-4">
-  <button onClick={() => setFiltroProf('todas')} className={`px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === 'todas' ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>Todas</button>
-  {profesionales.map(p => (
-    <button key={p.id} onClick={() => setFiltroProf(p.id)} className={`capitalize px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === p.id ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>
-      {p.especialidad.replace('_', ' ')}
-    </button>
-  ))}
-</div>
+            <button onClick={() => setFiltroProf('todas')} className={`px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === 'todas' ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>Todas</button>
+            {profesionales.map(p => (
+              <button key={p.id} onClick={() => setFiltroProf(p.id)} className={`capitalize px-4 py-2 rounded-full font-bold text-[0.9rem] border-2 transition-colors ${filtroProf === p.id ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>
+                {p.especialidad.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
 
           <ul className="grid gap-[10px]">
             {turnosFiltrados.length === 0 ? <p className="text-muted py-2 font-bold">No hay turnos para esta vista.</p> : turnosFiltrados.map((turno) => {
@@ -443,7 +452,7 @@ export default function SecretariaView() {
         </div>
       )}
 
-      {/* ================= VISTA: PACIENTES (ACTUALIZADA) ================= */}
+      {/* ================= VISTA: PACIENTES ================= */}
       {activeTab === 'pacientes' && (
         <div className="card bg-surface backdrop-blur-md border border-line rounded-[24px] p-[22px] shadow-lg">
           <h2 className="text-[1.55rem] font-extrabold text-violet-700 tracking-tight mb-1">Pacientes</h2>
