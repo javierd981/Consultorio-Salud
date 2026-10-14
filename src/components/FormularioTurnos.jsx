@@ -78,13 +78,16 @@ export default function FormularioTurnos() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Registrar el paciente (si es nuevo) y el turno
+ // Registrar el paciente (si es nuevo) y el turno
   const confirmarTurno = async () => {
     setErrorValidacion('Procesando turno...');
     
-    // 1. Verificar si el paciente ya existe por su DNI
+    // Limpiamos cualquier punto, guion o espacio del DNI antes de buscar
+    const dniLimpio = form.dni.replace(/\D/g, ''); 
+
+    // 1. Verificar si el paciente ya existe por su DNI limpio
     let { data: pacienteExistente } = await supabase
-      .from('pacientes').select('id').eq('dni', form.dni).maybeSingle();
+      .from('pacientes').select('id').eq('dni', dniLimpio).maybeSingle();
     
     let pacienteId = pacienteExistente?.id;
 
@@ -93,7 +96,7 @@ export default function FormularioTurnos() {
       const osIdInt = parseInt(form.obraSocialId, 10);
       const { data: nuevoPac, error: errPac } = await supabase
         .from('pacientes').insert([{
-          dni: form.dni.replace(/\D/g, ''),
+          dni: dniLimpio,
           nombre: form.nombre,
           apellido: form.apellido,
           telefono_wsp: form.tel,
@@ -102,11 +105,11 @@ export default function FormularioTurnos() {
           consentimiento_datos_at: new Date().toISOString()
         }]).select().single();
       
-      if (errPac) return setErrorValidacion('Error al guardar datos del paciente.');
+      if (errPac) return setErrorValidacion('Error al guardar datos. Verificá tu DNI o conexión.');
       pacienteId = nuevoPac.id;
     }
 
-    // 3. Insertar el Turno (El trigger de la BD lo vinculará automáticamente)
+    // 3. Insertar el Turno 
     const { error: errTurno } = await supabase
       .from('turnos').insert([{
         profesional_id: form.profId,
@@ -119,7 +122,7 @@ export default function FormularioTurnos() {
 
     if (errTurno) return setErrorValidacion('El horario acaba de ser ocupado. Elegí otro.');
     
-    setErrorValidacion(''); // <-- Limpiamos el texto de carga aquí
+    setErrorValidacion(''); 
     setStep(6); // Ir a pantalla de éxito
   };
 
