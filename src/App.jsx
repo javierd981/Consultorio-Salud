@@ -5,7 +5,6 @@ import PacientesView from './components/PacientesView';
 import HorariosView from './components/HorariosView';
 import SecretariaView from './components/SecretariaView';
 import FormularioTurnos from './components/FormularioTurnos';
-// Importamos las dos vistas nuevas
 import ArancelesView from './components/ArancelesView';
 import DashboardView from './components/DashboardView';
 
@@ -134,7 +133,7 @@ export default function App() {
                 <div className="w-[110px] h-[110px] mx-auto mb-5 rounded-full overflow-hidden bg-white border-[3px] border-white shadow-lg">
                   <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                 </div>
-                <h1 className="text-[2.2rem] font-extrabold text-violet-700 leading-tight mb-1">Bienvenidos</h1>
+                <h1 className="text-[2.2rem] font-extrabold text-violet-700 leading-tight mb-1">Bienvenid@</h1>
                 <p className="text-[1.1rem] text-muted font-bold mb-8">Consultorios de Salud</p>
                 <button onClick={() => setShowPublicForm(true)} className="w-full px-6 py-4 bg-gradient-to-b from-[#7FA457] to-[#4C7536] text-white font-extrabold text-[1.15rem] rounded-[20px] shadow-[0_10px_24px_rgba(76,117,54,0.3)] hover:-translate-y-1 transition-transform">
                   Pedir tu turno
@@ -170,6 +169,7 @@ export default function App() {
   // ================= INTERFAZ PRINCIPAL (STAFF LOGUEADO) =================
   return (
     <div className="relative z-10 max-w-[640px] mx-auto p-4 pt-5 min-h-screen flex flex-col">
+      <BackgroundBlobs /> {/* <-- Agregamos el fondo del formulario de pacientes aquí */}
       <ToastNotification />
       
       {/* Modal Cambio de Clave */}
@@ -213,7 +213,6 @@ export default function App() {
             {activeTab === 'agenda' && <AgendaView profesional={profesional} />}
             {activeTab === 'pacientes' && <PacientesView profesional={profesional} />}
             {activeTab === 'horarios' && <HorariosView profesional={profesional} />}
-            {/* Vistas Nuevas Conectadas */}
             {activeTab === 'aranceles' && <ArancelesView profesional={profesional} />}
             {activeTab === 'reportes' && <DashboardView profesional={profesional} />}
           </>
@@ -232,6 +231,18 @@ export default function App() {
           </div>
         </nav>
       )}
+    </div>
+  );
+}
+
+// Manchas de fondo (Componente agregado)
+function BackgroundBlobs() {
+  return (
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-80">
+      <div className="absolute w-[300px] h-[300px] bg-lav-300/30 rounded-full -left-[90px] -top-[100px]"></div>
+      <div className="absolute w-[380px] h-[380px] bg-violet-500/20 rounded-full -right-[140px] -bottom-[120px]"></div>
+      <div className="absolute w-[340px] h-[340px] bg-leaf/28 rounded-tr-full rounded-bl-full -left-[110px] -bottom-[90px] -rotate-12"></div>
+      <div className="absolute w-[220px] h-[220px] bg-leaf/28 rounded-tl-full rounded-br-full right-[8%] bottom-[60px] rotate-18"></div>
     </div>
   );
 }

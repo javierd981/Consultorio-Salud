@@ -1,11 +1,22 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { format, parseISO } from 'date-fns';
+import { es } from 'date-fns/locale';
 
-export default function PacientesView() {
+export default function PacientesView({ profesional }) {
   const [pacientes, setPacientes] = useState([]);
   const [obrasSociales, setObrasSociales] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  
+  // Modales
   const [pacienteEditar, setPacienteEditar] = useState(null);
+  const [pacienteDetalle, setPacienteDetalle] = useState(null);
+  
+  // Datos del detalle
+  const [historialTurnos, setHistorialTurnos] = useState([]);
+  const [notasClinicas, setNotasClinicas] = useState('');
+  const [guardandoNotas, setGuardandoNotas] = useState(false);
+
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
 
   const mostrarMensaje = (text, tipo = 'exito') => {
@@ -18,14 +29,12 @@ export default function PacientesView() {
   }, []);
 
   const cargarDatos = async () => {
-    // Cargamos pacientes
     const { data: dataPacientes } = await supabase
       .from('pacientes')
       .select('*, obras_sociales(nombre)')
       .order('apellido', { ascending: true });
     if (dataPacientes) setPacientes(dataPacientes);
 
-    // Cargamos obras sociales para el select del modal de edición
     const { data: dataObras } = await supabase
       .from('obras_sociales')
       .select('*')
@@ -34,10 +43,9 @@ export default function PacientesView() {
     if (dataObras) setObrasSociales(dataObras);
   };
 
+  // --- LÓGICA DE EDICIÓN DE DATOS ---
   const guardarCambios = async (e) => {
     e.preventDefault();
-    
-    // Formateamos el ID de la obra social (si es particular o vacío, va null)
     const osIdInt = pacienteEditar.obra_social_id ? parseInt(pacienteEditar.obra_social_id, 10) : null;
 
     const { error } = await supabase
@@ -55,23 +63,58 @@ export default function PacientesView() {
     if (!error) {
       mostrarMensaje('Datos actualizados correctamente.', 'exito');
       setPacienteEditar(null);
-      cargarDatos(); // Recargamos para reflejar cambios
+      cargarDatos();
     } else {
       mostrarMensaje('Error al actualizar paciente.', 'error');
     }
   };
 
-  // Filtro de búsqueda por nombre, apellido o DNI
+  // --- LÓGICA DE HISTORIA CLÍNICA (DETALLE) ---
+  const abrirDetalle = async (paciente) => {
+    setPacienteDetalle(paciente);
+    setNotasClinicas(paciente.notas_clinicas || '');
+    
+    // Buscar historial de turnos de este paciente
+    const { data: turnos } = await supabase
+      .from('turnos')
+      .select('id, inicio, estado, profesionales(especialidad, nombre, apellido)')
+      .eq('paciente_id', paciente.id)
+      .order('inicio', { ascending: false });
+      
+    if (turnos) setHistorialTurnos(turnos);
+  };
+
+  const guardarNotas = async () => {
+    setGuardandoNotas(true);
+    const { error } = await supabase
+      .from('pacientes')
+      .update({ notas_clinicas: notasClinicas })
+      .eq('id', pacienteDetalle.id);
+
+    if (!error) {
+      mostrarMensaje('Notas clínicas guardadas.', 'exito');
+      // Actualizamos el estado local para no tener que recargar todo
+      setPacientes(pacientes.map(p => p.id === pacienteDetalle.id ? { ...p, notas_clinicas: notasClinicas } : p));
+    } else {
+      mostrarMensaje('Error al guardar las notas.', 'error');
+    }
+    setGuardandoNotas(false);
+  };
+
   const pacientesFiltrados = pacientes.filter(p => 
     p.nombre.toLowerCase().includes(busqueda.toLowerCase()) || 
     p.apellido.toLowerCase().includes(busqueda.toLowerCase()) ||
     p.dni.includes(busqueda)
   );
 
+  const getBadgeClass = (estado) => {
+    const clases = { confirmado: 'bg-[#EDE3F8] text-[#4A2E70]', atendido: 'bg-[#DDEBCF] text-[#2F5420]', ausente: 'bg-[#FBE7C4] text-[#7A4A00]', cancelado: 'bg-[#E6E1EB] text-[#4F4560]' };
+    return clases[estado] || clases.confirmado;
+  };
+
   return (
     <div className="card bg-surface backdrop-blur-md border border-line rounded-[24px] p-[22px] shadow-lg animate-fade-in relative pb-8">
       
-      {/* Toast Notification */}
       {toast.visible && (
         <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] ${toast.tipo === 'error' ? 'bg-[#B3261E]' : 'bg-[#4C7536]'} text-white px-6 py-3 rounded-2xl shadow-xl font-bold text-center animate-fade-in max-w-[90%] w-max`}>
           {toast.text}
@@ -79,9 +122,8 @@ export default function PacientesView() {
       )}
 
       <h2 className="text-[1.55rem] font-extrabold text-violet-700 tracking-tight mb-1">Directorio de Pacientes</h2>
-      <p className="text-muted mb-4">Buscá y editá los datos de contacto o cobertura.</p>
+      <p className="text-muted mb-4">Buscá, editá o revisá la historia clínica.</p>
 
-      {/* Buscador */}
       <div className="mb-5">
         <input 
           type="text" 
@@ -92,27 +134,32 @@ export default function PacientesView() {
         />
       </div>
 
-      {/* Lista de pacientes */}
       <ul className="grid gap-[10px]">
         {pacientesFiltrados.length === 0 ? (
           <p className="text-muted py-2 font-bold text-center">No se encontraron pacientes.</p>
         ) : (
           pacientesFiltrados.map((paciente) => (
-            <li key={paciente.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-field border-[1.5px] border-line rounded-[18px] p-4 transition-colors hover:border-violet-300">
-              <div className="flex-1 min-w-0">
-                <strong className="block font-extrabold text-ink text-[1.1rem] truncate">
+            <li key={paciente.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-field border-[1.5px] border-line rounded-[18px] p-3 transition-colors hover:border-violet-400 group">
+              {/* Zona clickeable para abrir la Historia Clínica */}
+              <div 
+                className="flex-1 min-w-0 cursor-pointer p-1" 
+                onClick={() => abrirDetalle(paciente)}
+              >
+                <strong className="block font-extrabold text-ink text-[1.1rem] truncate group-hover:text-violet-700 transition-colors">
                   {paciente.apellido}, {paciente.nombre}
                 </strong>
                 <span className="block text-[0.9rem] text-muted mt-0.5">
-                  DNI: {paciente.dni} · WhatsApp: {paciente.telefono_wsp}
+                  DNI: {paciente.dni} · Cel: {paciente.telefono_wsp}
                 </span>
                 <span className="block text-[0.85rem] font-bold text-violet-700 mt-1">
-                  {paciente.obras_sociales?.nombre || 'Particular'} {paciente.nro_afiliado ? `- Afiliado: ${paciente.nro_afiliado}` : ''}
+                  {paciente.obras_sociales?.nombre || 'Particular'}
                 </span>
               </div>
+              
+              {/* Botón aislado para Editar Datos */}
               <button 
-                onClick={() => setPacienteEditar({ ...paciente, obra_social_id: paciente.obra_social_id || '' })}
-                className="shrink-0 px-4 py-2 bg-glass_sec_bg border border-line text-violet-900 font-bold rounded-[14px] hover:bg-violet-100 transition-colors"
+                onClick={(e) => { e.stopPropagation(); setPacienteEditar({ ...paciente, obra_social_id: paciente.obra_social_id || '' }); }}
+                className="shrink-0 px-4 py-2 bg-white border border-line text-violet-900 font-bold rounded-[14px] hover:bg-mist transition-colors shadow-sm"
               >
                 Editar
               </button>
@@ -121,9 +168,79 @@ export default function PacientesView() {
         )}
       </ul>
 
-      {/* MODAL DE EDICIÓN */}
+      {/* ================= MODAL: DETALLE / HISTORIA CLÍNICA ================= */}
+      {pacienteDetalle && (
+        <div className="fixed inset-0 z-[60] bg-violet-900/40 flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-surface border border-line rounded-[24px] shadow-xl w-full max-w-[600px] animate-fade-in flex flex-col h-[90vh] sm:h-[85vh] overflow-hidden">
+            
+            {/* Header del modal */}
+            <div className="p-5 border-b border-line bg-mist/30 flex justify-between items-start">
+               <div>
+                  <h3 className="font-extrabold text-violet-700 text-[1.4rem] leading-tight">{pacienteDetalle.apellido}, {pacienteDetalle.nombre}</h3>
+                  <p className="text-muted font-bold text-[0.9rem]">Historia Clínica y Consultas</p>
+               </div>
+               <button onClick={() => setPacienteDetalle(null)} className="w-8 h-8 flex items-center justify-center bg-white border border-line rounded-full text-ink font-bold hover:bg-field transition-colors">✕</button>
+            </div>
+
+            {/* Cuerpo del modal scrolleable */}
+            <div className="p-5 overflow-y-auto flex-1 flex flex-col gap-6">
+              
+              {/* Sección Notas */}
+              <div>
+                 <div className="flex justify-between items-end mb-2">
+                    <label className="block font-extrabold text-ink text-[1.1rem]">Notas Clínicas</label>
+                    <button 
+                       onClick={guardarNotas} 
+                       disabled={guardandoNotas}
+                       className="px-4 py-1.5 bg-violet-700 text-white font-bold rounded-xl text-[0.85rem] shadow-sm disabled:opacity-50"
+                    >
+                      {guardandoNotas ? 'Guardando...' : 'Guardar notas'}
+                    </button>
+                 </div>
+                 <textarea 
+                    value={notasClinicas} 
+                    onChange={e => setNotasClinicas(e.target.value)} 
+                    placeholder="Escribí aquí las observaciones médicas, diagnósticos o evolución del paciente..."
+                    className="w-full h-32 bg-field border-[1.5px] border-line rounded-[16px] p-3 focus:outline-none focus:ring-4 focus:ring-violet-500/50 resize-none font-medium text-ink leading-relaxed"
+                 />
+              </div>
+
+              {/* Sección Historial */}
+              <div>
+                 <h4 className="font-extrabold text-ink text-[1.1rem] mb-3">Historial de Consultas</h4>
+                 {historialTurnos.length === 0 ? (
+                    <p className="text-muted text-[0.9rem] italic border border-dashed border-line p-4 rounded-xl text-center bg-field">
+                       Aún no tiene turnos registrados.
+                    </p>
+                 ) : (
+                    <ul className="grid gap-2.5">
+                       {historialTurnos.map(turno => (
+                         <li key={turno.id} className="flex items-center justify-between p-3 bg-white border border-line rounded-2xl shadow-sm">
+                            <div>
+                               <strong className="block font-bold text-ink text-[0.95rem] capitalize">
+                                 {format(parseISO(turno.inicio), "EEEE d MMM yyyy - HH:mm'h'", { locale: es })}
+                               </strong>
+                               <span className="text-muted text-[0.85rem]">
+                                  {turno.profesionales?.especialidad?.replace('_', ' ')} (Dra. {turno.profesionales?.apellido})
+                               </span>
+                            </div>
+                            <span className={`shrink-0 text-[0.75rem] font-extrabold px-[10px] py-[4px] rounded-full uppercase tracking-wider ${getBadgeClass(turno.estado)}`}>
+                               {turno.estado}
+                            </span>
+                         </li>
+                       ))}
+                    </ul>
+                 )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: EDICIÓN DE DATOS ================= */}
+      {/* (Se mantiene exactamente igual que antes para no romper la edición) */}
       {pacienteEditar && (
-        <div className="fixed inset-0 z-[60] bg-violet-900/40 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[70] bg-violet-900/60 flex items-center justify-center p-4">
           <div className="bg-surface border border-line rounded-[24px] p-6 shadow-xl w-full max-w-[380px] animate-fade-in max-h-[90vh] overflow-y-auto">
             <h3 className="font-extrabold text-violet-700 text-[1.4rem] mb-4">Editar Paciente</h3>
             
@@ -167,11 +284,10 @@ export default function PacientesView() {
               )}
 
               <div className="flex gap-3 mt-2">
-                <button type="button" onClick={() => setPacienteEditar(null)} className="flex-1 py-3 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line">Cancelar</button>
-                <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-violet-700 text-white shadow-md">Guardar</button>
+                <button type="button" onClick={() => setPacienteEditar(null)} className="flex-1 py-3 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line hover:bg-mist">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-violet-700 text-white shadow-md hover:bg-violet-800">Guardar</button>
               </div>
             </form>
-
           </div>
         </div>
       )}
