@@ -1,0 +1,15 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+body {
+  @apply bg-gradient-to-br from-bg1 to-bg2 text-ink font-nunito min-h-screen m-0 bg-fixed overflow-x-hidden;
+}
+
+/* Ocultar barra de scroll en la botonera de días */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
