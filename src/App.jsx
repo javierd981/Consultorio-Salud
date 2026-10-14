@@ -133,7 +133,7 @@ export default function App() {
                 <div className="w-[110px] h-[110px] mx-auto mb-5 rounded-full overflow-hidden bg-white border-[3px] border-white shadow-lg">
                   <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
                 </div>
-                <h1 className="text-[2.2rem] font-extrabold text-violet-700 leading-tight mb-1">Bienvenid@</h1>
+                <h1 className="text-[2.2rem] font-extrabold text-violet-700 leading-tight mb-1">Bienvenidos</h1>
                 <p className="text-[1.1rem] text-muted font-bold mb-8">Consultorios de Salud</p>
                 <button onClick={() => setShowPublicForm(true)} className="w-full px-6 py-4 bg-gradient-to-b from-[#7FA457] to-[#4C7536] text-white font-extrabold text-[1.15rem] rounded-[20px] shadow-[0_10px_24px_rgba(76,117,54,0.3)] hover:-translate-y-1 transition-transform">
                   Pedir tu turno
