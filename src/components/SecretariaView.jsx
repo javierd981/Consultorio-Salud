@@ -26,6 +26,7 @@ export default function SecretariaView() {
   const [buscandoHorarios, setBuscandoHorarios] = useState(false);
   const [errorTurno, setErrorTurno] = useState('');
   const [turnoEditar, setTurnoEditar] = useState(null);
+  const [pacienteEditar, setPacienteEditar] = useState(null);
 
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
 
@@ -189,6 +190,31 @@ export default function SecretariaView() {
     setTurnoSpecs({ especialidadId: '', dia: startOfToday(), slot: null });
     setActiveTab('agenda');
     setSelectedDate(turnoSpecs.dia); 
+  };
+  
+  const guardarCambiosPaciente = async (e) => {
+    e.preventDefault();
+    const osIdInt = pacienteEditar.obra_social_id ? parseInt(pacienteEditar.obra_social_id, 10) : null;
+
+    const { error } = await supabase
+      .from('pacientes')
+      .update({
+        nombre: pacienteEditar.nombre,
+        apellido: pacienteEditar.apellido,
+        dni: pacienteEditar.dni,
+        telefono_wsp: pacienteEditar.telefono_wsp,
+        obra_social_id: osIdInt,
+        nro_afiliado: pacienteEditar.nro_afiliado
+      })
+      .eq('id', pacienteEditar.id);
+
+    if (!error) {
+      mostrarMensaje('Datos de paciente actualizados.', 'exito');
+      setPacienteEditar(null);
+      cargarDatosGenerales();
+    } else {
+      mostrarMensaje('Error al actualizar paciente.', 'error');
+    }
   };
 
   const turnosFiltrados = turnos.filter(t => filtroProf === 'todas' || t.profesional_id === filtroProf);
@@ -405,11 +431,11 @@ export default function SecretariaView() {
         </div>
       )}
 
-      {/* ================= VISTA: PACIENTES ================= */}
+      {/* ================= VISTA: PACIENTES (ACTUALIZADA) ================= */}
       {activeTab === 'pacientes' && (
         <div className="card bg-surface backdrop-blur-md border border-line rounded-[24px] p-[22px] shadow-lg">
           <h2 className="text-[1.55rem] font-extrabold text-violet-700 tracking-tight mb-1">Pacientes</h2>
-          <p className="text-muted mb-3.5">Todos los pacientes del consultorio.</p>
+          <p className="text-muted mb-3.5">Buscá y editá los datos de contacto o cobertura.</p>
           
           <div className="mb-3.5">
             <input type="search" value={busqueda} onChange={e => setBusqueda(e.target.value)} placeholder="Buscar por nombre o DNI" className="w-full bg-field border-[1.5px] border-line rounded-[14px] p-3 focus:outline-none focus:ring-4 focus:ring-violet-500/50" />
@@ -418,14 +444,77 @@ export default function SecretariaView() {
           
           <ul className="grid gap-2.5">
             {pacientesFiltrados.length === 0 ? <p className="text-muted py-2">No se encontraron pacientes.</p> : pacientesFiltrados.map(p => (
-              <li key={p.id} className="w-full flex items-center gap-3.5 bg-field border-[1.5px] border-line rounded-[18px] p-3 min-h-[68px]">
-                <span className="flex-1 min-w-0">
+              <li key={p.id} className="w-full flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-field border-[1.5px] border-line rounded-[18px] p-3 transition-colors hover:border-violet-300">
+                <div className="flex-1 min-w-0">
                   <strong className="block font-extrabold leading-[1.25] text-ink truncate">{p.nombre} {p.apellido}</strong>
-                  <small className="block text-[0.9rem] text-muted truncate">{p.obras_sociales?.nombre || 'Particular'} · DNI {p.dni}</small>
-                </span>
+                  <span className="block text-[0.9rem] text-muted mt-0.5">DNI: {p.dni} · WhatsApp: {p.telefono_wsp}</span>
+                  <span className="block text-[0.85rem] font-bold text-violet-700 mt-1">
+                    {p.obras_sociales?.nombre || 'Particular'} {p.nro_afiliado ? `- Afiliado: ${p.nro_afiliado}` : ''}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => setPacienteEditar({ ...p, obra_social_id: p.obra_social_id || '' })}
+                  className="shrink-0 px-4 py-2 bg-white border border-line text-violet-900 font-bold rounded-[14px] hover:bg-mist transition-colors shadow-sm"
+                >
+                  Editar
+                </button>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* ================= MODAL: EDICIÓN DE PACIENTE (SECRETARIA) ================= */}
+      {pacienteEditar && (
+        <div className="fixed inset-0 z-[70] bg-violet-900/60 flex items-center justify-center p-4">
+          <div className="bg-surface border border-line rounded-[24px] p-6 shadow-xl w-full max-w-[380px] animate-fade-in max-h-[90vh] overflow-y-auto">
+            <h3 className="font-extrabold text-violet-700 text-[1.4rem] mb-4">Editar Paciente</h3>
+            
+            <form onSubmit={guardarCambiosPaciente} className="grid gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold mb-1 text-[0.9rem]">Nombre</label>
+                  <input type="text" value={pacienteEditar.nombre} onChange={e => setPacienteEditar({...pacienteEditar, nombre: e.target.value})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1 text-[0.9rem]">Apellido</label>
+                  <input type="text" value={pacienteEditar.apellido} onChange={e => setPacienteEditar({...pacienteEditar, apellido: e.target.value})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block font-bold mb-1 text-[0.9rem]">DNI</label>
+                <input type="tel" value={pacienteEditar.dni} onChange={e => setPacienteEditar({...pacienteEditar, dni: e.target.value})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-[0.9rem]">WhatsApp</label>
+                <input type="tel" value={pacienteEditar.telefono_wsp} onChange={e => setPacienteEditar({...pacienteEditar, telefono_wsp: e.target.value})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500" required />
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1 text-[0.9rem]">Obra Social</label>
+                <select value={pacienteEditar.obra_social_id} onChange={e => setPacienteEditar({...pacienteEditar, obra_social_id: e.target.value, nro_afiliado: ''})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500">
+                  <option value="">Particular / Ninguna</option>
+                  {obrasSociales.map(os => (
+                    <option key={os.id} value={os.id}>{os.nombre}</option>
+                  ))}
+                </select>
+              </div>
+
+              {pacienteEditar.obra_social_id && obrasSociales.find(o => o.id.toString() === pacienteEditar.obra_social_id.toString())?.nombre !== 'Particular' && (
+                <div className="animate-fade-in">
+                  <label className="block font-bold mb-1 text-[0.9rem]">Nro de Afiliado</label>
+                  <input type="text" value={pacienteEditar.nro_afiliado || ''} onChange={e => setPacienteEditar({...pacienteEditar, nro_afiliado: e.target.value})} className="w-full bg-field border-[1.5px] border-line rounded-xl p-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-2">
+                <button type="button" onClick={() => setPacienteEditar(null)} className="flex-1 py-3 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line hover:bg-mist">Cancelar</button>
+                <button type="submit" className="flex-1 py-3 rounded-xl font-bold bg-violet-700 text-white shadow-md hover:bg-violet-800">Guardar</button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
