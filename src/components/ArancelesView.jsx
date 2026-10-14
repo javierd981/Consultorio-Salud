@@ -97,7 +97,7 @@ export default function ArancelesView({ profesional }) {
         disabled={guardando}
         className="w-full py-3.5 bg-violet-700 text-white font-extrabold text-[1.05rem] rounded-2xl shadow-[0_8px_20px_rgba(62,39,96,0.25)] hover:-translate-y-0.5 transition-transform disabled:opacity-60"
       >
-        {guardando ? 'Guardando...' : 'Guardar Todos los Cambios'}
+        {guardando ? 'Guardando...' : 'Guardar cambios'}
       </button>
 
     </div>
