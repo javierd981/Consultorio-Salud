@@ -65,7 +65,8 @@ export default function SecretariaView() {
 
     const { data } = await supabase
       .from('turnos')
-      .select('id, inicio, estado, pagado, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obras_sociales(nombre))')
+      // SE AGREGÓ: monto y obra_social_id
+      .select('id, inicio, estado, pagado, monto, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
       .order('inicio', { ascending: true });
@@ -73,22 +74,41 @@ export default function SecretariaView() {
     if (data) setTurnos(data);
   };
 
-  // --- ACTUALIZADO: CAMBIAR ESTADO Y PAGAR ---
+  // --- LÓGICA DE COBRO AUTOMÁTICO (CORREGIDA IGUAL A DOCTORA) ---
   const cambiarEstadoTurno = async (id, nuevoEstado) => {
-    // Si el estado es 'atendido', preparamos el objeto para marcar también como pagado
-    const datosAActualizar = nuevoEstado === 'atendido' 
-      ? { estado: nuevoEstado, pagado: true } 
-      : { estado: nuevoEstado };
+    const estaPagado = nuevoEstado === 'atendido';
 
-    const { error } = await supabase
-      .from('turnos')
-      .update(datosAActualizar)
-      .eq('id', id);
+    let updates = { 
+      estado: nuevoEstado, 
+      pagado: estaPagado 
+    };
+
+    if (nuevoEstado === 'atendido') {
+      const profId = turnoEditar.profesional_id;
+      const osId = turnoEditar.pacientes?.obra_social_id || null;
+
+      let query = supabase.from('aranceles').select('monto').eq('profesional_id', profId);
+      
+      if (osId) {
+        query = query.eq('obra_social_id', osId);
+      } else {
+        query = query.is('obra_social_id', null);
+      }
+
+      const { data: arancel } = await query.maybeSingle();
+      updates.monto = arancel?.monto || 0;
+      
+    } else {
+      // Reversión a 0 si cambiamos de atendido a otro estado
+      updates.monto = 0;
+    }
+
+    const { error } = await supabase.from('turnos').update(updates).eq('id', id);
 
     if (!error) {
-      setTurnos(turnos.map(t => t.id === id ? { ...t, ...datosAActualizar } : t));
+      setTurnos(turnos.map(t => t.id === id ? { ...t, ...updates } : t));
       setTurnoEditar(null);
-      mostrarMensaje('Estado actualizado correctamente.', 'exito');
+      mostrarMensaje('Estado y cobros actualizados.', 'exito');
     } else {
       mostrarMensaje('Error al actualizar el turno.', 'error');
     }

@@ -39,26 +39,38 @@ export default function AgendaView({ profesional }) {
   };
 
   const cambiarEstado = async (turno, nuevoEstado) => {
-    let updates = { estado: nuevoEstado };
+    // 1. Definimos dinámicamente si está pagado (solo será true si es 'atendido')
+    const estaPagado = nuevoEstado === 'atendido';
 
-    // Automatización de pago al atender
-    if (nuevoEstado === 'atendido' && turno.estado !== 'atendido') {
-      updates.pagado = true;
-      if (!turno.monto || turno.monto === 0) {
-        const osId = turno.pacientes?.obra_social_id;
-        if (osId) {
-          const { data: arancel } = await supabase
-            .from('aranceles')
-            .select('monto')
-            .eq('profesional_id', profesional.profesionales.id)
-            .eq('obra_social_id', osId)
-            .maybeSingle();
-          updates.monto = arancel?.monto || 0;
-        }
+    let updates = { 
+      estado: nuevoEstado,
+      pagado: estaPagado 
+    };
+
+    // 2. Si lo marcamos como atendido, buscamos el precio del arancel
+    if (nuevoEstado === 'atendido') {
+      const profId = profesional.profesionales.id;
+      const osId = turno.pacientes?.obra_social_id || null;
+
+      let query = supabase.from('aranceles').select('monto').eq('profesional_id', profId);
+      
+      // Si tiene obra social busca esa, si no (particular), busca donde obra_social_id es nulo
+      if (osId) {
+        query = query.eq('obra_social_id', osId);
+      } else {
+        query = query.is('obra_social_id', null);
       }
+
+      const { data: arancel } = await query.maybeSingle();
+      updates.monto = arancel?.monto || 0;
+      
+    } else {
+      // 3. Si se revierte el estado a ausente, confirmado o cancelado, el monto vuelve a 0
+      updates.monto = 0;
     }
 
     const { error } = await supabase.from('turnos').update(updates).eq('id', turno.id);
+    
     if (!error) {
       setTurnos(turnos.map(t => t.id === turno.id ? { ...t, ...updates } : t));
       setTurnoEditar(null);
