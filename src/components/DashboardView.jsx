@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import * as XLSX from 'xlsx';
 
 export default function DashboardView({ profesional }) {
   const [turnos, setTurnos] = useState([]);
@@ -25,38 +26,41 @@ export default function DashboardView({ profesional }) {
     if (data) setTurnos(data);
   };
 
-  // --- Función para exportar a CSV/Excel ---
+  // --- Función para exportar a XLSX (Excel nativo) ---
   const exportarAExcel = () => {
     if (turnos.length === 0) return alert('No hay datos para exportar en este mes.');
 
-    // 1. Definimos las cabeceras de las columnas
-    const cabeceras = ['Fecha', 'Hora', 'Paciente', 'Obra Social', 'Estado', 'Monto ($)', 'Pagado'];
+    // 1. Preparamos los datos ordenados para las columnas de Excel
+    const datosExcel = turnos.map(t => ({
+      Fecha: format(parseISO(t.inicio), 'dd/MM/yyyy'),
+      Hora: format(parseISO(t.inicio), 'HH:mm'),
+      Paciente: t.pacientes ? `${t.pacientes.nombre} ${t.pacientes.apellido}` : 'Desconocido',
+      'Obra Social': t.pacientes?.obras_sociales?.nombre || 'Particular',
+      Estado: t.estado,
+      'Monto ($)': t.monto || 0,
+      Pagado: t.pagado ? 'Sí' : 'No'
+    }));
 
-    // 2. Mapeamos los datos de los turnos a las columnas
-    const filas = turnos.map(t => {
-      const fecha = format(parseISO(t.inicio), 'dd/MM/yyyy');
-      const hora = format(parseISO(t.inicio), 'HH:mm');
-      const paciente = t.pacientes ? `${t.pacientes.nombre} ${t.pacientes.apellido}` : 'Desconocido';
-      const obraSocial = t.pacientes?.obras_sociales?.nombre || 'Particular';
-      const monto = t.monto || 0;
-      const pagado = t.pagado ? 'Sí' : 'No';
+    // 2. Convertimos los datos a una hoja de cálculo
+    const hoja = XLSX.utils.json_to_sheet(datosExcel);
 
-      // Envolvemos las celdas en comillas para evitar problemas con comas en nombres
-      return `"${fecha}","${hora}","${paciente}","${obraSocial}","${t.estado}","${monto}","${pagado}"`;
-    });
+    // Ajustamos el ancho de las columnas para que se vea prolijo al abrirlo
+    hoja['!cols'] = [
+      { wch: 12 }, // Fecha
+      { wch: 8 },  // Hora
+      { wch: 25 }, // Paciente
+      { wch: 20 }, // Obra Social
+      { wch: 12 }, // Estado
+      { wch: 12 }, // Monto
+      { wch: 10 }  // Pagado
+    ];
 
-    // 3. Unimos todo con saltos de línea y agregamos BOM para que Excel lea los acentos (UTF-8)
-    const contenidoCSV = '\uFEFF' + cabeceras.join(',') + '\n' + filas.join('\n');
+    // 3. Creamos el libro (archivo) y le agregamos la hoja
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, 'Turnos del Mes');
 
-    // 4. Creamos el archivo y forzamos la descarga
-    const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Reporte_Turnos_${mesSeleccionado}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 4. Forzamos la descarga del archivo .xlsx
+    XLSX.writeFile(libro, `Reporte_Turnos_${mesSeleccionado}.xlsx`);
   };
 
   // --- Métricas Calculadas ---
@@ -118,13 +122,13 @@ export default function DashboardView({ profesional }) {
         Total de turnos registrados en el período: <strong className="text-violet-700">{totalTurnos}</strong>
       </div>
 
-      {/* NUEVO BOTÓN: Exportar a Excel */}
+      {/* BOTÓN: Exportar a Excel XLSX */}
       <button 
         onClick={exportarAExcel}
         className="w-full flex items-center justify-center gap-2 py-3.5 bg-glass_sec_bg border-[1.5px] border-violet-500 text-violet-900 font-extrabold text-[1.05rem] rounded-2xl shadow-sm hover:bg-violet-100 transition-colors"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-        Exportar Reporte a Excel
+        Exportar Reporte a Excel (.xlsx)
       </button>
 
     </div>
