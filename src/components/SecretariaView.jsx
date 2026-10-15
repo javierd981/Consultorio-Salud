@@ -28,6 +28,9 @@ export default function SecretariaView() {
   const [turnoEditar, setTurnoEditar] = useState(null);
   const [pacienteEditar, setPacienteEditar] = useState(null);
 
+  // --- NUEVO: Estado para controlar la duración del turno ---
+  const [duracionTurno, setDuracionTurno] = useState(30);
+
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
 
   const mostrarMensaje = (text, tipo = 'exito') => {
@@ -65,7 +68,6 @@ export default function SecretariaView() {
 
     const { data } = await supabase
       .from('turnos')
-      // SE AGREGÓ: monto y obra_social_id
       .select('id, inicio, estado, pagado, monto, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
@@ -74,7 +76,7 @@ export default function SecretariaView() {
     if (data) setTurnos(data);
   };
 
-  // --- LÓGICA DE COBRO AUTOMÁTICO (CORREGIDA IGUAL A DOCTORA) ---
+  // --- LÓGICA DE COBRO AUTOMÁTICO ---
   const cambiarEstadoTurno = async (id, nuevoEstado) => {
     const estaPagado = nuevoEstado === 'atendido';
 
@@ -99,7 +101,6 @@ export default function SecretariaView() {
       updates.monto = arancel?.monto || 0;
       
     } else {
-      // Reversión a 0 si cambiamos de atendido a otro estado
       updates.monto = 0;
     }
 
@@ -200,16 +201,20 @@ export default function SecretariaView() {
 
     if (!turnoSpecs.especialidadId || !turnoSpecs.slot) return setErrorTurno('Elegí una especialidad y un horario libre.');
 
+    // --- ACTUALIZADO: Calculamos la fecha fin en base a la duración seleccionada ---
+    const fechaInicio = new Date(turnoSpecs.slot.inicio);
+    const fechaFin = new Date(fechaInicio.getTime() + duracionTurno * 60000);
+
     const { error: errTurno } = await supabase.from('turnos').insert([{
       profesional_id: turnoSpecs.especialidadId,
       paciente_id: pacienteId,
-      inicio: turnoSpecs.slot.inicio,
-      fin: turnoSpecs.slot.fin,
+      inicio: fechaInicio.toISOString(),
+      fin: fechaFin.toISOString(),
       origen: 'web',
       estado: 'confirmado'
     }]);
 
-    if (errTurno) return setErrorTurno('Error al guardar. Ese horario acaba de ser ocupado.');
+    if (errTurno) return setErrorTurno('Error al guardar. Ese horario acaba de ser ocupado o la franja larga se superpone con otro turno.');
 
     mostrarMensaje('¡Turno guardado con éxito!', 'exito');
     setModoPaciente('existente');
@@ -217,6 +222,7 @@ export default function SecretariaView() {
     setBusquedaTurno('');
     setFormNuevo({ nombre: '', apellido: '', dni: '', tel: '', obraSocialId: '', afiliado: '' });
     setTurnoSpecs({ especialidadId: '', dia: startOfToday(), slot: null });
+    setDuracionTurno(30); // Resetea a 30 min para el próximo turno
     setActiveTab('agenda');
     setSelectedDate(turnoSpecs.dia); 
   };
@@ -439,6 +445,15 @@ export default function SecretariaView() {
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* --- NUEVO: Selector de duración de la consulta --- */}
+          <div className="mb-4">
+            <label className="block font-bold mb-1.5">Duración de la consulta</label>
+            <div className="flex gap-2">
+              <button onClick={() => setDuracionTurno(30)} className={`flex-1 py-2.5 rounded-[12px] font-bold border-2 transition-colors ${duracionTurno === 30 ? 'bg-violet-700 border-violet-700 text-white' : 'bg-field border-line text-ink'}`}>Normal (30 min)</button>
+              <button onClick={() => setDuracionTurno(60)} className={`flex-1 py-2.5 rounded-[12px] font-bold border-2 transition-colors ${duracionTurno === 60 ? 'bg-[#7FA457] border-[#7FA457] text-white' : 'bg-field border-line text-ink'}`}>Práctica (1 hora)</button>
             </div>
           </div>
 
