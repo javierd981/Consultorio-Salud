@@ -28,8 +28,10 @@ export default function SecretariaView() {
   const [turnoEditar, setTurnoEditar] = useState(null);
   const [pacienteEditar, setPacienteEditar] = useState(null);
 
-  // --- NUEVO: Estado para controlar la duración del turno ---
   const [duracionTurno, setDuracionTurno] = useState(30);
+  
+  // --- NUEVO ESTADO: Para modificar la hora del turno ---
+  const [nuevoHorario, setNuevoHorario] = useState('');
 
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
 
@@ -68,7 +70,8 @@ export default function SecretariaView() {
 
     const { data } = await supabase
       .from('turnos')
-      .select('id, inicio, estado, pagado, monto, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
+      // NUEVO: Agregamos "fin" a la consulta para calcular la duración exacta al editar el horario
+      .select('id, inicio, fin, estado, pagado, monto, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
       .order('inicio', { ascending: true });
@@ -76,7 +79,6 @@ export default function SecretariaView() {
     if (data) setTurnos(data);
   };
 
-  // --- LÓGICA DE COBRO AUTOMÁTICO ---
   const cambiarEstadoTurno = async (id, nuevoEstado) => {
     const estaPagado = nuevoEstado === 'atendido';
 
@@ -115,7 +117,42 @@ export default function SecretariaView() {
     }
   };
 
-  // --- INTEGRACIÓN WHATSAPP ---
+  // --- NUEVA FUNCIÓN: Modificar el horario de un turno existente ---
+  const guardarNuevoHorario = async () => {
+    if (!nuevoHorario) return;
+
+    // 1. Extraer la nueva hora y minuto del input
+    const fechaBase = new Date(turnoEditar.inicio);
+    const [horas, minutos] = nuevoHorario.split(':');
+    
+    // 2. Crear la nueva fecha de inicio
+    const nuevoInicio = new Date(fechaBase);
+    nuevoInicio.setHours(parseInt(horas, 10), parseInt(minutos, 10), 0, 0);
+
+    // 3. Calcular cuánto duraba el turno originalmente para mantener su proporción
+    const inicioOriginal = new Date(turnoEditar.inicio).getTime();
+    const finOriginal = new Date(turnoEditar.fin).getTime();
+    const duracionMs = finOriginal - inicioOriginal;
+
+    // 4. Calcular el nuevo fin
+    const nuevoFin = new Date(nuevoInicio.getTime() + (duracionMs > 0 ? duracionMs : 30 * 60000));
+
+    // 5. Guardar en base de datos
+    const { error } = await supabase
+      .from('turnos')
+      .update({ inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() })
+      .eq('id', turnoEditar.id);
+
+    if (!error) {
+      // Reflejamos los cambios visualmente de inmediato
+      setTurnos(turnos.map(t => t.id === turnoEditar.id ? { ...t, inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() } : t).sort((a, b) => new Date(a.inicio) - new Date(b.inicio)));
+      setTurnoEditar(prev => ({ ...prev, inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() }));
+      mostrarMensaje('Horario modificado con éxito.', 'exito');
+    } else {
+      mostrarMensaje('Error: el horario puede estar chocando con otro turno.', 'error');
+    }
+  };
+
   const enviarWhatsApp = (tipo) => {
     const telefono = turnoEditar.pacientes?.telefono_wsp;
     if (!telefono) {
@@ -201,7 +238,6 @@ export default function SecretariaView() {
 
     if (!turnoSpecs.especialidadId || !turnoSpecs.slot) return setErrorTurno('Elegí una especialidad y un horario libre.');
 
-    // --- ACTUALIZADO: Calculamos la fecha fin en base a la duración seleccionada ---
     const fechaInicio = new Date(turnoSpecs.slot.inicio);
     const fechaFin = new Date(fechaInicio.getTime() + duracionTurno * 60000);
 
@@ -222,7 +258,7 @@ export default function SecretariaView() {
     setBusquedaTurno('');
     setFormNuevo({ nombre: '', apellido: '', dni: '', tel: '', obraSocialId: '', afiliado: '' });
     setTurnoSpecs({ especialidadId: '', dia: startOfToday(), slot: null });
-    setDuracionTurno(30); // Resetea a 30 min para el próximo turno
+    setDuracionTurno(30); 
     setActiveTab('agenda');
     setSelectedDate(turnoSpecs.dia); 
   };
@@ -314,7 +350,8 @@ export default function SecretariaView() {
                const prof = profesionales.find(p => p.id === turno.profesional_id);
                return (
                 <li key={turno.id}>
-                  <button onClick={() => setTurnoEditar({...turno, profesionalObj: prof})} className="w-full flex items-center gap-[14px] bg-field border-[1.5px] border-line rounded-[18px] p-[12px_14px] min-h-[68px] hover:border-violet-500 cursor-pointer text-left transition-colors">
+                  {/* NUEVO: Al hacer clic, precargamos el horario actual del turno en el estado 'nuevoHorario' */}
+                  <button onClick={() => { setTurnoEditar({...turno, profesionalObj: prof}); setNuevoHorario(format(new Date(turno.inicio), 'HH:mm')); }} className="w-full flex items-center gap-[14px] bg-field border-[1.5px] border-line rounded-[18px] p-[12px_14px] min-h-[68px] hover:border-violet-500 cursor-pointer text-left transition-colors">
                     <span className={`shrink-0 font-extrabold text-[1.15rem] min-w-[58px] ${turno.estado === 'cancelado' ? 'text-muted line-through' : 'text-violet-700'}`}>{format(new Date(turno.inicio), 'HH:mm')}</span>
                     <span className="flex-1 min-w-0">
                       <strong className={`block font-extrabold leading-[1.25] text-ink truncate ${turno.estado === 'cancelado' ? 'line-through opacity-70' : ''}`}>{turno.pacientes?.nombre} {turno.pacientes?.apellido}</strong>
@@ -349,6 +386,25 @@ export default function SecretariaView() {
                  <button onClick={() => enviarWhatsApp('confirmacion')} className="flex-1 py-2.5 bg-[#25D366] text-white rounded-[12px] font-bold text-[0.85rem] shadow-sm hover:-translate-y-0.5 transition-transform">Confirmación</button>
                  <button onClick={() => enviarWhatsApp('recordatorio')} className="flex-1 py-2.5 bg-[#128C7E] text-white rounded-[12px] font-bold text-[0.85rem] shadow-sm hover:-translate-y-0.5 transition-transform">Recordatorio</button>
                </div>
+            </div>
+
+            {/* NUEVO: Recuadro para Modificar el Horario del Turno */}
+            <div className="bg-field border border-line rounded-[16px] p-3 mb-4">
+              <label className="block text-[0.85rem] font-bold text-ink mb-2">Modificar horario</label>
+              <div className="flex gap-2">
+                <input 
+                  type="time" 
+                  value={nuevoHorario}
+                  onChange={(e) => setNuevoHorario(e.target.value)}
+                  className="flex-1 bg-white border border-line rounded-[12px] p-2 text-center font-bold focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                />
+                <button 
+                  onClick={guardarNuevoHorario}
+                  className="px-4 bg-violet-100 text-violet-700 font-bold rounded-[12px] hover:bg-violet-200 transition-colors"
+                >
+                  Guardar
+                </button>
+              </div>
             </div>
 
             {/* Opciones de Estado */}
@@ -448,7 +504,6 @@ export default function SecretariaView() {
             </div>
           </div>
 
-          {/* --- NUEVO: Selector de duración de la consulta --- */}
           <div className="mb-4">
             <label className="block font-bold mb-1.5">Duración de la consulta</label>
             <div className="flex gap-2">
