@@ -18,10 +18,14 @@ export default function App() {
   const [showPublicForm, setShowPublicForm] = useState(false);
   const [showLoginForm, setShowLoginForm] = useState(false);
 
-  // Sistema de Notificaciones y Modal
+  // Sistema de Notificaciones y Modales
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
   const [showPwdModal, setShowPwdModal] = useState(false);
   const [newPwd, setNewPwd] = useState('');
+  
+  // --- NUEVO ESTADO: Para el modal de recuperar contraseña ---
+  const [showRecuperarModal, setShowRecuperarModal] = useState(false);
+  const [usuarioRecuperar, setUsuarioRecuperar] = useState('');
 
   const mostrarMensaje = (text, tipo = 'exito') => {
     setToast({ visible: true, text, tipo });
@@ -80,25 +84,24 @@ export default function App() {
     }
   };
 
- // --- NUEVA FUNCIÓN: Recuperar contraseña con ventana de diálogo ---
-  const recuperarContrasena = async () => {
-    const usuarioIngresado = window.prompt("Ingresá tu nombre de usuario para recuperar la contraseña (ej: kinesiologa):");
-    
-    // Si el usuario cancela o lo deja vacío, no hacemos nada
-    if (!usuarioIngresado || usuarioIngresado.trim() === '') {
-      return; 
+  // --- NUEVA FUNCIÓN: Envía el correo usando el dato del modal propio ---
+  const enviarCorreoRecuperacion = async () => {
+    if (!usuarioRecuperar || usuarioRecuperar.trim() === '') {
+      return mostrarMensaje('Por favor, ingresá un usuario.', 'error');
     }
 
-    const fakeEmail = `${usuarioIngresado.toLowerCase().trim()}@consultoriocs.com`;
+    const fakeEmail = `${usuarioRecuperar.toLowerCase().trim()}@consultoriocs.com`;
     
     const { error } = await supabase.auth.resetPasswordForEmail(fakeEmail, {
-      redirectTo: window.location.origin // Esto le dice a Supabase que use la web actual en vez de localhost
+      redirectTo: window.location.origin 
     });
 
     if (error) {
       mostrarMensaje('Error al enviar el correo. Verificá que el usuario exista.', 'error');
     } else {
       mostrarMensaje('¡Te enviamos un correo con el link de recuperación!');
+      setShowRecuperarModal(false);
+      setUsuarioRecuperar('');
     }
   };
 
@@ -132,6 +135,29 @@ export default function App() {
     return (
       <div className="relative min-h-screen flex flex-col">
         <ToastNotification />
+        
+        {/* --- NUEVO: Modal estilizado para recuperar contraseña --- */}
+        {showRecuperarModal && (
+          <div className="fixed inset-0 z-[60] bg-violet-900/40 flex items-center justify-center p-4">
+            <div className="bg-surface backdrop-blur-xl border border-white/50 rounded-[28px] p-6 shadow-xl w-full max-w-[340px] animate-fade-in text-center">
+              <h3 className="font-extrabold text-violet-700 text-[1.3rem] mb-2">Recuperar clave</h3>
+              <p className="text-muted text-[0.95rem] mb-4">Ingresá tu nombre de usuario (ej: kinesiologa).</p>
+              <input 
+                type="text" 
+                value={usuarioRecuperar} 
+                onChange={e => setUsuarioRecuperar(e.target.value)} 
+                placeholder="Usuario..." 
+                className="w-full bg-white/90 border border-line rounded-[14px] p-3 mb-5 focus:outline-none focus:ring-4 focus:ring-violet-500/50 text-ink font-semibold" 
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setShowRecuperarModal(false)} className="flex-1 py-2.5 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line hover:bg-white transition-colors">Cancelar</button>
+                <button onClick={enviarCorreoRecuperacion} className="flex-1 py-2.5 rounded-xl font-bold bg-violet-700 text-white shadow-md hover:bg-violet-800 transition-colors">Enviar link</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="fixed inset-0 z-0 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: "url('/Fondo.png')" }}>
           <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]"></div>
         </div>
@@ -179,12 +205,11 @@ export default function App() {
                   <button type="submit" className="w-full mt-3 text-white font-extrabold text-[1.05rem] py-3.5 rounded-[18px] bg-gradient-to-b from-violet-500 to-violet-700 shadow-md hover:-translate-y-1 transition-transform">
                     Ingresar
                   </button>
-                  {/* --- NUEVO: Botón de Olvidaste tu contraseña --- */}
                   <div className="text-center mt-2">
                     <button 
                       type="button" 
-                      onClick={recuperarContrasena}
-                      className="text-violet-700 font-bold text-[0.9rem] hover:underline"
+                      onClick={() => setShowRecuperarModal(true)}
+                      className="text-violet-700 font-bold text-[0.9rem] hover:underline transition-all"
                     >
                       ¿Olvidaste tu contraseña?
                     </button>
@@ -204,7 +229,7 @@ export default function App() {
       <BackgroundBlobs /> {/* <-- Agregamos el fondo del formulario de pacientes aquí */}
       <ToastNotification />
       
-      {/* Modal Cambio de Clave */}
+      {/* Modal Cambio de Clave (Cuando ya están logueados) */}
       {showPwdModal && (
         <div className="fixed inset-0 z-50 bg-violet-900/40 flex items-center justify-center p-4">
           <div className="bg-surface border border-line rounded-[24px] p-6 shadow-xl w-full max-w-[340px] animate-fade-in">
@@ -212,8 +237,8 @@ export default function App() {
             <p className="text-muted text-[0.9rem] mb-4">Ingresa una nueva clave de al menos 6 caracteres.</p>
             <input type="text" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="Nueva contraseña..." className="w-full bg-field border border-line rounded-xl p-3 mb-4 focus:outline-none focus:ring-2 focus:ring-violet-500" />
             <div className="flex gap-2">
-              <button onClick={() => setShowPwdModal(false)} className="flex-1 py-2.5 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line">Cancelar</button>
-              <button onClick={cambiarMiClave} className="flex-1 py-2.5 rounded-xl font-bold bg-violet-700 text-white">Guardar</button>
+              <button onClick={() => setShowPwdModal(false)} className="flex-1 py-2.5 rounded-xl font-bold bg-glass_sec_bg text-violet-900 border border-line hover:bg-mist transition-colors">Cancelar</button>
+              <button onClick={cambiarMiClave} className="flex-1 py-2.5 rounded-xl font-bold bg-violet-700 text-white shadow-md hover:bg-violet-800 transition-colors">Guardar</button>
             </div>
           </div>
         </div>
@@ -267,7 +292,6 @@ export default function App() {
   );
 }
 
-// Manchas de fondo (Componente agregado)
 function BackgroundBlobs() {
   return (
     <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden opacity-80">
