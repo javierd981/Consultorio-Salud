@@ -80,21 +80,25 @@ export default function App() {
     }
   };
 
-  // --- NUEVA FUNCIÓN: Recuperar contraseña ---
+ // --- NUEVA FUNCIÓN: Recuperar contraseña con ventana de diálogo ---
   const recuperarContrasena = async () => {
-    if (!username) {
-      return mostrarMensaje('Por favor, escribí tu usuario arriba y tocá este botón de nuevo.', 'error');
+    const usuarioIngresado = window.prompt("Ingresá tu nombre de usuario para recuperar la contraseña (ej: kinesiologa):");
+    
+    // Si el usuario cancela o lo deja vacío, no hacemos nada
+    if (!usuarioIngresado || usuarioIngresado.trim() === '') {
+      return; 
     }
 
-    const fakeEmail = `${username.toLowerCase().trim()}@consultoriocs.com`;
+    const fakeEmail = `${usuarioIngresado.toLowerCase().trim()}@consultoriocs.com`;
+    
     const { error } = await supabase.auth.resetPasswordForEmail(fakeEmail, {
-      redirectTo: window.location.origin // Esto redirige a la misma página una vez cambiada
+      redirectTo: window.location.origin // Esto le dice a Supabase que use la web actual en vez de localhost
     });
 
     if (error) {
-      mostrarMensaje('Error al enviar correo de recuperación.', 'error');
+      mostrarMensaje('Error al enviar el correo. Verificá que el usuario exista.', 'error');
     } else {
-      mostrarMensaje('¡Te enviamos un correo con un link para crear tu nueva clave!');
+      mostrarMensaje('¡Te enviamos un correo con el link de recuperación!');
     }
   };
 
