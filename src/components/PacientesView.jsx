@@ -234,7 +234,7 @@ export default function PacientesView({ profesional }) {
                             {turno.nota_clinica && (
                               <div className="bg-[#F3ECF9] border border-violet-200 rounded-xl p-2.5 mt-1">
                                 <p className="text-[0.9rem] text-violet-900 font-medium leading-tight">
-                                  <span className="font-bold mr-1">Evolución:</span> {turno.nota_clinica}
+                                  <span className="font-bold mr-1">Nota Clínica:</span> {turno.nota_clinica}
                                 </p>
                               </div>
                             )}
