@@ -77,7 +77,8 @@ export default function PacientesView({ profesional }) {
     // Buscar historial de turnos de este paciente
     const { data: turnos } = await supabase
       .from('turnos')
-      .select('id, inicio, estado, profesionales(especialidad, nombre, apellido)')
+      // NUEVO: Agregamos nota_clinica a la consulta
+      .select('id, inicio, estado, nota_clinica, profesionales(especialidad, nombre, apellido)')
       .eq('paciente_id', paciente.id)
       .order('inicio', { ascending: false });
       
@@ -215,18 +216,28 @@ export default function PacientesView({ profesional }) {
                  ) : (
                     <ul className="grid gap-2.5">
                        {historialTurnos.map(turno => (
-                         <li key={turno.id} className="flex items-center justify-between p-3 bg-white border border-line rounded-2xl shadow-sm">
-                            <div>
-                               <strong className="block font-bold text-ink text-[0.95rem] capitalize">
-                                 {format(parseISO(turno.inicio), "EEEE d MMM yyyy - HH:mm'h'", { locale: es })}
-                               </strong>
-                               <span className="text-muted text-[0.85rem]">
-                                  {turno.profesionales?.especialidad?.replace('_', ' ')} (Dra. {turno.profesionales?.apellido})
+                         <li key={turno.id} className="flex flex-col gap-2 p-3 bg-white border border-line rounded-2xl shadow-sm">
+                            <div className="flex items-center justify-between">
+                               <div>
+                                  <strong className="block font-bold text-ink text-[0.95rem] capitalize">
+                                     {format(parseISO(turno.inicio), "EEEE d MMM yyyy - HH:mm'h'", { locale: es })}
+                                  </strong>
+                                  <span className="text-muted text-[0.85rem]">
+                                     {turno.profesionales?.especialidad?.replace('_', ' ')} (Dra. {turno.profesionales?.apellido})
+                                  </span>
+                               </div>
+                               <span className={`shrink-0 text-[0.75rem] font-extrabold px-[10px] py-[4px] rounded-full uppercase tracking-wider ${getBadgeClass(turno.estado)}`}>
+                                  {turno.estado}
                                </span>
                             </div>
-                            <span className={`shrink-0 text-[0.75rem] font-extrabold px-[10px] py-[4px] rounded-full uppercase tracking-wider ${getBadgeClass(turno.estado)}`}>
-                               {turno.estado}
-                            </span>
+                            {/* NUEVO: Mostramos la nota clínica si existe */}
+                            {turno.nota_clinica && (
+                              <div className="bg-[#F3ECF9] border border-violet-200 rounded-xl p-2.5 mt-1">
+                                <p className="text-[0.9rem] text-violet-900 font-medium leading-tight">
+                                  <span className="font-bold mr-1">Evolución:</span> {turno.nota_clinica}
+                                </p>
+                              </div>
+                            )}
                          </li>
                        ))}
                     </ul>
