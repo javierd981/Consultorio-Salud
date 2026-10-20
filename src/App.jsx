@@ -80,6 +80,24 @@ export default function App() {
     }
   };
 
+  // --- NUEVA FUNCIÓN: Recuperar contraseña ---
+  const recuperarContrasena = async () => {
+    if (!username) {
+      return mostrarMensaje('Por favor, escribí tu usuario arriba y tocá este botón de nuevo.', 'error');
+    }
+
+    const fakeEmail = `${username.toLowerCase().trim()}@consultoriocs.com`;
+    const { error } = await supabase.auth.resetPasswordForEmail(fakeEmail, {
+      redirectTo: window.location.origin // Esto redirige a la misma página una vez cambiada
+    });
+
+    if (error) {
+      mostrarMensaje('Error al enviar correo de recuperación.', 'error');
+    } else {
+      mostrarMensaje('¡Te enviamos un correo con un link para crear tu nueva clave!');
+    }
+  };
+
   const ToastNotification = () => {
     if (!toast.visible) return null;
     const bgClass = toast.tipo === 'error' ? 'bg-[#B3261E]' : 'bg-[#4C7536]';
@@ -157,6 +175,16 @@ export default function App() {
                   <button type="submit" className="w-full mt-3 text-white font-extrabold text-[1.05rem] py-3.5 rounded-[18px] bg-gradient-to-b from-violet-500 to-violet-700 shadow-md hover:-translate-y-1 transition-transform">
                     Ingresar
                   </button>
+                  {/* --- NUEVO: Botón de Olvidaste tu contraseña --- */}
+                  <div className="text-center mt-2">
+                    <button 
+                      type="button" 
+                      onClick={recuperarContrasena}
+                      className="text-violet-700 font-bold text-[0.9rem] hover:underline"
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </button>
+                  </div>
                 </form>
               </div>
             )}
