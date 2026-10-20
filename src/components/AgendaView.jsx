@@ -7,6 +7,10 @@ export default function AgendaView({ profesional }) {
   const [turnos, setTurnos] = useState([]);
   const [selectedDate, setSelectedDate] = useState(startOfToday());
   const [turnoEditar, setTurnoEditar] = useState(null);
+  
+  // --- NUEVO: Estado para guardar el historial del paciente ---
+  const [historialPaciente, setHistorialPaciente] = useState([]);
+  
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
 
   const mostrarMensaje = (text, tipo = 'exito') => {
@@ -29,7 +33,8 @@ export default function AgendaView({ profesional }) {
     
     const { data } = await supabase
       .from('turnos')
-      .select('id, inicio, estado, monto, pagado, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
+      // NUEVO: Agregamos nota_clinica y paciente_id a la consulta
+      .select('id, inicio, estado, monto, pagado, nota_clinica, paciente_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
       .eq('profesional_id', profesional.profesionales.id)
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
@@ -38,8 +43,35 @@ export default function AgendaView({ profesional }) {
     if (data) setTurnos(data);
   };
 
+  // --- NUEVO: Función para abrir el turno y buscar el historial del paciente ---
+  const abrirTurno = async (turno) => {
+    setTurnoEditar(turno);
+    setHistorialPaciente([]); // Limpiamos la lista mientras carga
+
+    if (turno.paciente_id) {
+      const { data } = await supabase
+        .from('turnos')
+        .select('id, inicio, nota_clinica')
+        .eq('paciente_id', turno.paciente_id)
+        .eq('estado', 'atendido')
+        .order('inicio', { ascending: false });
+        
+      if (data) {
+        // Guardamos todos los turnos anteriores, excluyendo el que estamos editando ahora
+        setHistorialPaciente(data.filter(t => t.id !== turno.id));
+      }
+    }
+  };
+
+  // --- NUEVO: Función para guardar la nota clínica ---
+  const actualizarNota = async (turno, nuevaNota) => {
+    const { error } = await supabase.from('turnos').update({ nota_clinica: nuevaNota }).eq('id', turno.id);
+    if (!error) {
+      setTurnos(turnos.map(t => t.id === turno.id ? { ...t, nota_clinica: nuevaNota } : t));
+    }
+  };
+
   const cambiarEstado = async (turno, nuevoEstado) => {
-    // 1. Definimos dinámicamente si está pagado (solo será true si es 'atendido')
     const estaPagado = nuevoEstado === 'atendido';
 
     let updates = { 
@@ -47,14 +79,12 @@ export default function AgendaView({ profesional }) {
       pagado: estaPagado 
     };
 
-    // 2. Si lo marcamos como atendido, buscamos el precio del arancel
     if (nuevoEstado === 'atendido') {
       const profId = profesional.profesionales.id;
       const osId = turno.pacientes?.obra_social_id || null;
 
       let query = supabase.from('aranceles').select('monto').eq('profesional_id', profId);
       
-      // Si tiene obra social busca esa, si no (particular), busca donde obra_social_id es nulo
       if (osId) {
         query = query.eq('obra_social_id', osId);
       } else {
@@ -65,7 +95,6 @@ export default function AgendaView({ profesional }) {
       updates.monto = arancel?.monto || 0;
       
     } else {
-      // 3. Si se revierte el estado a ausente, confirmado o cancelado, el monto vuelve a 0
       updates.monto = 0;
     }
 
@@ -80,7 +109,6 @@ export default function AgendaView({ profesional }) {
     }
   };
 
-  // Función para tocar el botón y cambiar de impago (rojo) a pagado (verde)
   const togglePago = async (turno) => {
     const nuevoPagado = !turno.pagado;
     const { error } = await supabase.from('turnos').update({ pagado: nuevoPagado }).eq('id', turno.id);
@@ -90,7 +118,6 @@ export default function AgendaView({ profesional }) {
     }
   };
 
-  // Función para guardar el monto cuando terminas de escribir en el campo
   const actualizarMonto = async (turno, nuevoMonto) => {
     const { error } = await supabase.from('turnos').update({ monto: nuevoMonto }).eq('id', turno.id);
     if (!error) {
@@ -130,7 +157,7 @@ export default function AgendaView({ profesional }) {
       <ul className="grid gap-[10px]">
         {turnos.length === 0 ? <p className="text-muted py-2 font-bold">No tenés turnos este día.</p> : turnos.map((turno) => (
           <li key={turno.id}>
-            <button onClick={() => setTurnoEditar(turno)} className="w-full flex items-center gap-[14px] bg-field border-[1.5px] border-line rounded-[18px] p-[12px_14px] min-h-[68px] hover:border-violet-500 text-left transition-colors cursor-pointer">
+            <button onClick={() => abrirTurno(turno)} className="w-full flex items-center gap-[14px] bg-field border-[1.5px] border-line rounded-[18px] p-[12px_14px] min-h-[68px] hover:border-violet-500 text-left transition-colors cursor-pointer">
               <span className={`shrink-0 font-extrabold text-[1.15rem] min-w-[58px] ${turno.estado === 'cancelado' ? 'text-muted line-through' : 'text-violet-700'}`}>
                 {format(new Date(turno.inicio), 'HH:mm')}
               </span>
@@ -152,7 +179,7 @@ export default function AgendaView({ profesional }) {
       {/* MODAL CON OPCIONES DE COBRO Y ESTADO */}
       {turnoEditar && (
         <div className="fixed inset-0 z-[60] bg-violet-900/40 flex items-center justify-center p-4">
-          <div className="bg-surface border border-line rounded-[24px] p-6 shadow-xl w-full max-w-[340px] animate-fade-in text-center">
+          <div className="bg-surface border border-line rounded-[24px] p-6 shadow-xl w-full max-w-[400px] animate-fade-in text-center max-h-[95vh] overflow-y-auto">
             <h3 className="font-extrabold text-violet-700 text-[1.2rem] mb-1">Detalle del turno</h3>
             <p className="font-bold text-ink mb-1">{turnoEditar.pacientes?.nombre} {turnoEditar.pacientes?.apellido}</p>
             <p className="text-muted text-[0.9rem] mb-4 capitalize">{format(new Date(turnoEditar.inicio), "EEEE d 'de' MMMM - HH:mm 'h'", { locale: es })}</p>
@@ -176,6 +203,37 @@ export default function AgendaView({ profesional }) {
                    />
                 </div>
             </div>
+
+            {/* --- NUEVO: Nota Clínica --- */}
+            <div className="text-left mb-4">
+              <label className="block text-[0.85rem] font-bold text-ink mb-1.5">Nota Clínica / Evolución</label>
+              <textarea 
+                value={turnoEditar.nota_clinica || ''}
+                onChange={(e) => setTurnoEditar({...turnoEditar, nota_clinica: e.target.value})}
+                onBlur={(e) => actualizarNota(turnoEditar, e.target.value)}
+                placeholder="Ej: Paciente presenta dolor de cabeza. Se receta ibuprofeno..."
+                className="w-full bg-field border border-line rounded-[12px] p-3 font-medium text-[0.95rem] text-ink focus:outline-none focus:ring-2 focus:ring-violet-500/50 resize-none h-20"
+              />
+            </div>
+
+            {/* --- NUEVO: Historial del Paciente --- */}
+            {historialPaciente.length > 0 && (
+              <div className="text-left mb-4 bg-surface border border-line rounded-[16px] p-3 max-h-[150px] overflow-y-auto">
+                <h4 className="text-[0.85rem] font-extrabold text-violet-700 mb-2">Historial de este paciente</h4>
+                <ul className="grid gap-2.5">
+                  {historialPaciente.map((hist) => (
+                    <li key={hist.id} className="border-b border-line pb-2.5 last:border-0 last:pb-0">
+                      <div className="flex justify-between items-center mb-0.5">
+                        <strong className="text-[0.85rem] text-ink font-bold">{format(new Date(hist.inicio), "dd/MM/yyyy")}</strong>
+                      </div>
+                      <p className="text-[0.85rem] text-muted leading-tight">
+                        {hist.nota_clinica ? hist.nota_clinica : <span className="italic">Sin notas registradas.</span>}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
             <div className="grid gap-2 mb-4">
               <button onClick={() => cambiarEstado(turnoEditar, 'confirmado')} className={`py-3 rounded-[14px] font-bold border-2 transition-all ${turnoEditar.estado === 'confirmado' ? 'bg-[#EDE3F8] border-[#4A2E70] text-[#4A2E70] shadow-sm' : 'bg-field border-line text-muted hover:border-violet-500'}`}>Confirmado</button>
