@@ -3,6 +3,9 @@ import { supabase } from '../supabaseClient';
 import { format, addDays, startOfToday, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+// --- NUEVO: Importamos el componente de Horarios ---
+import HorariosView from './HorariosView';
+
 export default function SecretariaView() {
   const [activeTab, setActiveTab] = useState('agenda');
   const [selectedDate, setSelectedDate] = useState(startOfToday());
@@ -30,7 +33,6 @@ export default function SecretariaView() {
 
   const [duracionTurno, setDuracionTurno] = useState(30);
   
-  // --- NUEVO ESTADO: Para modificar la hora del turno ---
   const [nuevoHorario, setNuevoHorario] = useState('');
 
   const [toast, setToast] = useState({ visible: false, text: '', tipo: '' });
@@ -70,7 +72,6 @@ export default function SecretariaView() {
 
     const { data } = await supabase
       .from('turnos')
-      // NUEVO: Agregamos "fin" a la consulta para calcular la duración exacta al editar el horario
       .select('id, inicio, fin, estado, pagado, monto, profesional_id, pacientes(nombre, apellido, dni, telefono_wsp, obra_social_id, obras_sociales(nombre))')
       .gte('inicio', startOfDay.toISOString())
       .lte('inicio', endOfDay.toISOString())
@@ -117,34 +118,27 @@ export default function SecretariaView() {
     }
   };
 
-  // --- NUEVA FUNCIÓN: Modificar el horario de un turno existente ---
   const guardarNuevoHorario = async () => {
     if (!nuevoHorario) return;
 
-    // 1. Extraer la nueva hora y minuto del input
     const fechaBase = new Date(turnoEditar.inicio);
     const [horas, minutos] = nuevoHorario.split(':');
     
-    // 2. Crear la nueva fecha de inicio
     const nuevoInicio = new Date(fechaBase);
     nuevoInicio.setHours(parseInt(horas, 10), parseInt(minutos, 10), 0, 0);
 
-    // 3. Calcular cuánto duraba el turno originalmente para mantener su proporción
     const inicioOriginal = new Date(turnoEditar.inicio).getTime();
     const finOriginal = new Date(turnoEditar.fin).getTime();
     const duracionMs = finOriginal - inicioOriginal;
 
-    // 4. Calcular el nuevo fin
     const nuevoFin = new Date(nuevoInicio.getTime() + (duracionMs > 0 ? duracionMs : 30 * 60000));
 
-    // 5. Guardar en base de datos
     const { error } = await supabase
       .from('turnos')
       .update({ inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() })
       .eq('id', turnoEditar.id);
 
     if (!error) {
-      // Reflejamos los cambios visualmente de inmediato
       setTurnos(turnos.map(t => t.id === turnoEditar.id ? { ...t, inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() } : t).sort((a, b) => new Date(a.inicio) - new Date(b.inicio)));
       setTurnoEditar(prev => ({ ...prev, inicio: nuevoInicio.toISOString(), fin: nuevoFin.toISOString() }));
       mostrarMensaje('Horario modificado con éxito.', 'exito');
@@ -350,7 +344,6 @@ export default function SecretariaView() {
                const prof = profesionales.find(p => p.id === turno.profesional_id);
                return (
                 <li key={turno.id}>
-                  {/* NUEVO: Al hacer clic, precargamos el horario actual del turno en el estado 'nuevoHorario' */}
                   <button onClick={() => { setTurnoEditar({...turno, profesionalObj: prof}); setNuevoHorario(format(new Date(turno.inicio), 'HH:mm')); }} className="w-full flex items-center gap-[14px] bg-field border-[1.5px] border-line rounded-[18px] p-[12px_14px] min-h-[68px] hover:border-violet-500 cursor-pointer text-left transition-colors">
                     <span className={`shrink-0 font-extrabold text-[1.15rem] min-w-[58px] ${turno.estado === 'cancelado' ? 'text-muted line-through' : 'text-violet-700'}`}>{format(new Date(turno.inicio), 'HH:mm')}</span>
                     <span className="flex-1 min-w-0">
@@ -376,7 +369,6 @@ export default function SecretariaView() {
             <p className="text-muted text-[0.9rem] mb-1 capitalize">{format(new Date(turnoEditar.inicio), "EEEE d 'de' MMMM - HH:mm 'h'", { locale: es })}</p>
             <p className="text-muted text-[0.85rem] font-bold mb-4 uppercase tracking-wider">{turnoEditar.profesionalObj?.especialidad?.replace('_', ' ')}</p>
             
-            {/* Opciones de WhatsApp */}
             <div className="bg-[#DCF8C6]/30 border border-[#DCF8C6] rounded-[16px] p-3 mb-4">
                <p className="text-[0.85rem] font-bold text-[#2F5420] mb-2 flex items-center justify-center gap-1.5">
                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
@@ -388,7 +380,6 @@ export default function SecretariaView() {
                </div>
             </div>
 
-            {/* NUEVO: Recuadro para Modificar el Horario del Turno */}
             <div className="bg-field border border-line rounded-[16px] p-3 mb-4">
               <label className="block text-[0.85rem] font-bold text-ink mb-2">Modificar horario</label>
               <div className="flex gap-2">
@@ -407,7 +398,6 @@ export default function SecretariaView() {
               </div>
             </div>
 
-            {/* Opciones de Estado */}
             <div className="grid grid-cols-2 gap-2 mb-4">
               <button onClick={() => cambiarEstadoTurno(turnoEditar.id, 'confirmado')} className={`py-2.5 rounded-[12px] font-bold border-2 transition-all text-[0.9rem] ${turnoEditar.estado === 'confirmado' ? 'bg-[#EDE3F8] border-[#4A2E70] text-[#4A2E70] shadow-sm' : 'bg-field border-line text-muted hover:border-violet-500'}`}>Confirmado</button>
               <button onClick={() => cambiarEstadoTurno(turnoEditar.id, 'atendido')} className={`py-2.5 rounded-[12px] font-bold border-2 transition-all text-[0.9rem] ${turnoEditar.estado === 'atendido' ? 'bg-[#DDEBCF] border-[#2F5420] text-[#2F5420] shadow-sm' : 'bg-field border-line text-muted hover:border-violet-500'}`}>Atendido</button>
@@ -629,6 +619,11 @@ export default function SecretariaView() {
         </div>
       )}
 
+      {/* ================= NUEVA VISTA: HORARIOS (Para Secretaria) ================= */}
+      {activeTab === 'horarios' && (
+        <HorariosView profesional={{ rol: 'secretaria' }} />
+      )}
+
       {/* ================= VISTA: AJUSTES ================= */}
       {activeTab === 'ajustes' && (
         <div className="card bg-surface backdrop-blur-md border border-line rounded-[24px] p-[22px] shadow-lg">
@@ -654,11 +649,13 @@ export default function SecretariaView() {
 
       {/* Menú Inferior Secretaría */}
       <nav className="fixed bottom-0 left-0 right-0 z-20 flex bg-surface backdrop-blur-lg border-t border-line pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-4 w-full max-w-[760px] mx-auto p-2 gap-1.5">
-          <button onClick={() => setActiveTab('agenda')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.85rem] leading-tight transition-colors ${activeTab === 'agenda' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Agenda</button>
-          <button onClick={() => setActiveTab('nuevo')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.85rem] leading-tight transition-colors ${activeTab === 'nuevo' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Nuevo Turno</button>
-          <button onClick={() => setActiveTab('pacientes')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.85rem] leading-tight transition-colors ${activeTab === 'pacientes' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Pacientes</button>
-          <button onClick={() => setActiveTab('ajustes')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.85rem] leading-tight transition-colors ${activeTab === 'ajustes' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Ajustes</button>
+        <div className="grid grid-cols-5 w-full max-w-[760px] mx-auto p-2 gap-1.5 overflow-x-auto scrollbar-hide">
+          <button onClick={() => setActiveTab('agenda')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.8rem] leading-tight transition-colors ${activeTab === 'agenda' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Agenda</button>
+          <button onClick={() => setActiveTab('nuevo')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.8rem] leading-tight transition-colors ${activeTab === 'nuevo' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Nuevo</button>
+          <button onClick={() => setActiveTab('pacientes')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.8rem] leading-tight transition-colors ${activeTab === 'pacientes' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Pacientes</button>
+          {/* NUEVO BOTÓN: Horarios */}
+          <button onClick={() => setActiveTab('horarios')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.8rem] leading-tight transition-colors ${activeTab === 'horarios' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Horarios</button>
+          <button onClick={() => setActiveTab('ajustes')} className={`py-3 px-1 rounded-[14px] font-bold text-[0.8rem] leading-tight transition-colors ${activeTab === 'ajustes' ? 'bg-violet-700 text-white' : 'text-violet-900 bg-glass_sec_bg border border-line'}`}>Ajustes</button>
         </div>
       </nav>
     </div>
